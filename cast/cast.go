@@ -19,7 +19,7 @@ type Basic interface {
 }
 
 // ToE casts any value to a [Basic] type.
-func ToE[T Basic](i any) (T, error) {
+func ToE[T Basic | []map[string]any | []string | []any | []int](i any) (T, error) {
 	var t T
 
 	var v any
@@ -31,35 +31,43 @@ func ToE[T Basic](i any) (T, error) {
 	case bool:
 		v, err = ToBoolE(i)
 	case int:
-		v, err = toNumberE[int](i, parseInt[int])
+		v, err = toNumberE(i, parseInt[int])
 	case int8:
-		v, err = toNumberE[int8](i, parseInt[int8])
+		v, err = toNumberE(i, parseInt[int8])
 	case int16:
-		v, err = toNumberE[int16](i, parseInt[int16])
+		v, err = toNumberE(i, parseInt[int16])
 	case int32:
-		v, err = toNumberE[int32](i, parseInt[int32])
+		v, err = toNumberE(i, parseInt[int32])
 	case int64:
-		v, err = toNumberE[int64](i, parseInt[int64])
+		v, err = toNumberE(i, parseInt[int64])
 	case uint:
-		v, err = toUnsignedNumberE[uint](i, parseUint[uint])
+		v, err = toUnsignedNumberE(i, parseUint[uint])
 	case uint8:
-		v, err = toUnsignedNumberE[uint8](i, parseUint[uint8])
+		v, err = toUnsignedNumberE(i, parseUint[uint8])
 	case uint16:
-		v, err = toUnsignedNumberE[uint16](i, parseUint[uint16])
+		v, err = toUnsignedNumberE(i, parseUint[uint16])
 	case uint32:
-		v, err = toUnsignedNumberE[uint32](i, parseUint[uint32])
+		v, err = toUnsignedNumberE(i, parseUint[uint32])
 	case uint64:
-		v, err = toUnsignedNumberE[uint64](i, parseUint[uint64])
+		v, err = toUnsignedNumberE(i, parseUint[uint64])
 	case float32:
-		v, err = toNumberE[float32](i, parseFloat[float32])
+		v, err = toNumberE(i, parseFloat[float32])
 	case float64:
-		v, err = toNumberE[float64](i, parseFloat[float64])
+		v, err = toNumberE(i, parseFloat[float64])
 	case time.Time:
 		v, err = ToTimeE(i)
 	case time.Duration:
 		v, err = ToDurationE(i)
 	case map[string]any:
 		v, err = ToStringMapE(i)
+	case []string:
+		v, err = toSliceE[string](i)
+	case []map[string]any:
+		v, err = toSliceE[map[string]any](i)
+	case []any:
+		v, err = ToSliceE(i)
+	case []int:
+		v, err = toSliceE[int](i)
 	}
 
 	if err != nil {
@@ -79,7 +87,7 @@ func Must[T any](i any, err error) T {
 }
 
 // To casts any value to a [Basic] type.
-func To[T Basic](i any) T {
+func To[T Basic | []map[string]any | []string | []any | []int](i any) T {
 	v, _ := ToE[T](i)
 
 	return v
