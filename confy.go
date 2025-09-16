@@ -586,10 +586,10 @@ func GetConfy() *Confy {
 // override, config file, key/value store, default
 //
 // Get returns an interface. For a specific value use one of the Get____ methods.
-func Get[T string | bool | cast.Number | time.Time | time.Duration | map[string]any | []string | []int](key string) T {
+func Get[T cast.Basic | []string | []int | []map[string]any](key string) T {
 	return cast.To[T](v.Get(key))
 }
-func GetWithDefault[T string | bool | cast.Number | time.Time | time.Duration | map[string]any | []string | []int](key string, default_val T) T {
+func GetWithDefault[T cast.Basic | []string | []int | []map[string]any](key string, default_val T) T {
 	if !v.InConfig(key) {
 		return default_val
 	} else {
@@ -600,7 +600,6 @@ func GetWithDefault[T string | bool | cast.Number | time.Time | time.Duration | 
 			return val
 		}
 	}
-	return cast.To[T](v.Get(key))
 }
 
 func (v *Confy) Get(key string) any {
