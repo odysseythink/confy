@@ -19,7 +19,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/spf13/cast"
+	"mlib.com/confy/cast"
 )
 
 // ConfigParseError denotes failing to parse configuration file.
