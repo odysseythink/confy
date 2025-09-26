@@ -3,9 +3,11 @@ package confy
 import (
 	"bytes"
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -761,6 +763,25 @@ func GetDuration(key string) time.Duration { return v.GetDuration(key) }
 
 func (v *Confy) GetDuration(key string) time.Duration {
 	return cast.ToDuration(v.Get(key))
+}
+func GetSlice[V any](key string) []V {
+	val := v.Get(key)
+	if val != nil {
+		bindata, err := json.Marshal(val)
+		if err != nil {
+			log.Printf("[E]json marshal %#v failed:%v", val, err)
+			return nil
+		}
+		res := make([]V, 0)
+		err = json.Unmarshal(bindata, &res)
+		if err != nil {
+			log.Printf("[E]json Unmarshal %#v failed:%v", val, err)
+			return nil
+		}
+		return res
+	} else {
+		return nil
+	}
 }
 
 // GetIntSlice returns the value associated with the key as a slice of int values.
