@@ -210,3 +210,8 @@ func jsonStringToObject(s string, v any) error {
 	data := []byte(s)
 	return json.Unmarshal(data, v)
 }
+
+// ToStringMapSliceE casts any value to a(n) []map[string]any type.
+func ToStringMapSliceE(i any) ([]map[string]any, error) {
+	return toSliceE[map[string]any](i)
+}
