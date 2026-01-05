@@ -15,6 +15,11 @@ import (
 	"mlib.com/confy/cast/internal"
 )
 
+// ToTimeSliceE any value to a [time.Time] type.
+func ToTimeSliceE(i any) ([]time.Time, error) {
+	return toSliceE[time.Time](i)
+}
+
 // ToTimeE any value to a [time.Time] type.
 func ToTimeE(i any) (time.Time, error) {
 	return ToTimeInDefaultLocationE(i, time.UTC)
