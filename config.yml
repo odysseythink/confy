@@ -1,0 +1,67 @@
+autocode:
+    common_root: /home/rw/workspace/lanyou_work/vcp-al/lanyoubot/src/service/quality_check_common
+    root: /home/rw/workspace/lanyou_work/vcp-al/lanyoubot
+    server: server
+captcha:
+    img-height: 80
+    img-width: 240
+    key-long: 6
+cors:
+    mode: strict-whitelist
+    whitelist:
+        - allow-credentials: true
+          allow-headers: Content-Type,AccessToken,X-CSRF-Token, Authorization, Token,X-Token,X-User-Id
+          allow-methods: POST, GET
+          allow-origin: example1.com
+          expose-headers: Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Content-Type
+        - allow-credentials: true
+          allow-headers: content-type
+          allow-methods: GET, POST
+          allow-origin: example2.com
+          expose-headers: Content-Length, Access-Control-Allow-Origin, Access-Control-Allow-Headers, Content-Type
+disk-list:
+    - mount-point: /
+email:
+    from: xxx@163.com
+    is-ssl: true
+    nickname: test
+    secret: xxx
+    to: xxx@qq.com
+excel:
+    dir: ./resource/excel/
+jwt:
+    buffer-time: 1d
+    expires-time: 7d
+    issuer: qmPlus
+    signing-key: 131a5a9e-ccf4-434f-b17c-ed46bda2c4da
+local:
+    store-path: uploads/file
+mysql:
+    config: charset=utf8mb4&parseTime=True&loc=Local
+    db-name: ""
+    engine: ""
+    log-mode: error
+    max-idle-conns: 10
+    max-open-conns: 100
+    password: test
+    path: 127.0.0.1
+    port: "3306"
+    prefix: ""
+    singular: false
+    username: test
+redis:
+    addr: 172.26.223.119:7001
+    db: 2
+    is_cluster: true
+    password: EnExByTMFAHxpj4zvnzR
+system:
+    addr: 8888
+    db-type: mysql
+    oss-type: local
+    router-prefix: ""
+    use-redis: false
+tencent-cos:
+    base-url: https://gin.vue.admin
+    bucket: xxxxx-10005608
+    region: ap-shanghai
+    secret-id: your-secret-id
