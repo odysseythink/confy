@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"time"
 )
 
 func toMapE[K comparable, V any](i any, keyFn func(any) K, valFn func(any) V) (map[K]V, error) {
@@ -138,7 +139,7 @@ func ToStringMapE(i any) (map[string]any, error) {
 	return toStringMapE(i, fn)
 }
 
-func toStringMapIntE[T int | int64](i any, fn func(any) T, fnE func(any) (T, error)) (map[string]T, error) {
+func toStringMapNumberE[T Number](i any, fn func(any) T, fnE func(any) (T, error)) (map[string]T, error) {
 	m := map[string]T{}
 
 	if i == nil {
@@ -194,14 +195,227 @@ func toStringMapIntE[T int | int64](i any, fn func(any) T, fnE func(any) (T, err
 	return m, nil
 }
 
+func toStringMapIntE[T int | int8 | int16 | int32 | int64 | uint | uint8 | uint16 | uint32 | uint64](i any, fn func(any) T, fnE func(any) (T, error)) (map[string]T, error) {
+	m := map[string]T{}
+
+	if i == nil {
+		return nil, fmt.Errorf(errorMsg, i, i, m)
+	}
+
+	switch v := i.(type) {
+	case map[string]T:
+		return v, nil
+
+	case map[string]any:
+		for k, val := range v {
+			m[k] = fn(val)
+		}
+
+		return m, nil
+
+	case map[any]T:
+		for k, val := range v {
+			m[ToString(k)] = val
+		}
+
+		return m, nil
+
+	case map[any]any:
+		for k, val := range v {
+			m[ToString(k)] = fn(val)
+		}
+
+		return m, nil
+
+	case string:
+		err := jsonStringToObject(v, &m)
+		return m, err
+	}
+
+	if reflect.TypeOf(i).Kind() != reflect.Map {
+		return m, fmt.Errorf(errorMsg, i, i, m)
+	}
+
+	mVal := reflect.ValueOf(m)
+	v := reflect.ValueOf(i)
+
+	for _, keyVal := range v.MapKeys() {
+		val, err := fnE(v.MapIndex(keyVal).Interface())
+		if err != nil {
+			return m, fmt.Errorf(errorMsg, i, i, m)
+		}
+
+		mVal.SetMapIndex(keyVal, reflect.ValueOf(val))
+	}
+
+	return m, nil
+}
+
+// ToStringMapInt8E casts any value to a map[string]int8 type.
+func ToStringMapInt8E(i any) (map[string]int8, error) {
+	return toStringMapNumberE(i, ToInt8, ToInt8E)
+}
+
+// ToStringMapInt16E casts any value to a map[string]int16 type.
+func ToStringMapInt16E(i any) (map[string]int16, error) {
+	return toStringMapNumberE(i, ToInt16, ToInt16E)
+}
+
+// ToStringMapInt32E casts any value to a map[string]int32 type.
+func ToStringMapInt32E(i any) (map[string]int32, error) {
+	return toStringMapNumberE(i, ToInt32, ToInt32E)
+}
+
 // ToStringMapIntE casts any value to a map[string]int type.
 func ToStringMapIntE(i any) (map[string]int, error) {
-	return toStringMapIntE(i, ToInt, ToIntE)
+	return toStringMapNumberE(i, ToInt, ToIntE)
 }
 
 // ToStringMapInt64E casts any value to a map[string]int64 type.
 func ToStringMapInt64E(i any) (map[string]int64, error) {
-	return toStringMapIntE(i, ToInt64, ToInt64E)
+	return toStringMapNumberE(i, ToInt64, ToInt64E)
+}
+
+// ToStringMapUint8E casts any value to a map[string]uint8 type.
+func ToStringMapUint8E(i any) (map[string]uint8, error) {
+	return toStringMapNumberE(i, ToUint8, ToUint8E)
+}
+
+// ToStringMapUint16E casts any value to a map[string]uint16 type.
+func ToStringMapUint16E(i any) (map[string]uint16, error) {
+	return toStringMapNumberE(i, ToUint16, ToUint16E)
+}
+
+// ToStringMapUint32E casts any value to a map[string]uint32 type.
+func ToStringMapUint32E(i any) (map[string]uint32, error) {
+	return toStringMapNumberE(i, ToUint32, ToUint32E)
+}
+
+// ToStringMapUint64E casts any value to a map[string]uint64 type.
+func ToStringMapUint64E(i any) (map[string]uint64, error) {
+	return toStringMapNumberE(i, ToUint64, ToUint64E)
+}
+
+// ToStringMapUintE casts any value to a map[string]uint type.
+func ToStringMapUintE(i any) (map[string]uint, error) {
+	return toStringMapNumberE(i, ToUint, ToUintE)
+}
+
+// ToStringMapNumberE casts any value to a map[string]T type.
+func ToStrMapE[T Basic | any](i any) (map[string]T, error) {
+	var dumyVal T
+	switch any(dumyVal).(type) {
+	case uint8:
+		val, err := toStringMapNumberE(i, ToUint8, ToUint8E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case uint16:
+		val, err := toStringMapNumberE(i, ToUint16, ToUint16E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case uint32:
+		val, err := toStringMapNumberE(i, ToUint32, ToUint32E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case uint64:
+		val, err := toStringMapNumberE(i, ToUint64, ToUint64E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case uint:
+		val, err := toStringMapNumberE(i, ToUint, ToUintE)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case int8:
+		val, err := toStringMapNumberE(i, ToInt8, ToInt8E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case int16:
+		val, err := toStringMapNumberE(i, ToInt16, ToInt16E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case int32:
+		val, err := toStringMapNumberE(i, ToInt32, ToInt32E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case int64:
+		val, err := toStringMapNumberE(i, ToInt64, ToInt64E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case int:
+		val, err := toStringMapNumberE(i, ToInt, ToIntE)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case float32:
+		val, err := toStringMapNumberE(i, ToFloat32, ToFloat32E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case float64:
+		val, err := toStringMapNumberE(i, ToFloat64, ToFloat64E)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case string:
+		val, err := ToStringMapStringE(i)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case bool:
+		val, err := ToStringMapBoolE(i)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case time.Time:
+		val, err := toStringMapE(i, ToTime)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case time.Duration:
+		val, err := toStringMapE(i, ToDuration)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case map[string]any:
+		val, err := toStringMapE(i, ToStringMap)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	case any:
+		val, err := ToStringMapE(i)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
+	default:
+		return nil, fmt.Errorf("unsupported data type %#v", dumyVal)
+	}
 }
 
 // jsonStringToObject attempts to unmarshall a string as JSON into
