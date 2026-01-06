@@ -302,7 +302,7 @@ func ToStringMapUintE(i any) (map[string]uint, error) {
 }
 
 // ToStringMapNumberE casts any value to a map[string]T type.
-func ToStrMapE[T Basic | any](i any) (map[string]T, error) {
+func ToStrMapE[T Basic | any | map[string]string](i any) (map[string]T, error) {
 	var dumyVal T
 	switch any(dumyVal).(type) {
 	case uint8:
@@ -414,7 +414,11 @@ func ToStrMapE[T Basic | any](i any) (map[string]T, error) {
 		}
 		return any(val).(map[string]T), nil
 	default:
-		return nil, fmt.Errorf("unsupported data type %#v", dumyVal)
+		val, err := ToStringMapE(i)
+		if err != nil {
+			return nil, err
+		}
+		return any(val).(map[string]T), nil
 	}
 }
 
