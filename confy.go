@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"mlib.com/confy/cast"
-	"mlib.com/confy/mapstructure"
+	"github.com/odysseythink/confy/cast"
+	"github.com/odysseythink/confy/mapstructure"
 
-	"mlib.com/confy/internal/features"
+	"github.com/odysseythink/confy/internal/features"
 )
 
 // ConfigMarshalError happens when failing to marshal the configuration.

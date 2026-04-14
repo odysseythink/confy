@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"mlib.com/confy"
+	"github.com/odysseythink/confy"
 )
 
 type remoteConfigProvider struct{}

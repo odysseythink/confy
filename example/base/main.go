@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 
-	"mlib.com/confy"
+	"github.com/odysseythink/confy"
 )
 
 func main() {

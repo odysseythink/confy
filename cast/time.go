@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"mlib.com/confy/cast/internal"
+	"github.com/odysseythink/confy/cast/internal"
 )
 
 // ToTimeSliceE any value to a [time.Time] type.

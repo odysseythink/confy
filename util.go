@@ -19,7 +19,7 @@ import (
 	"strings"
 	"unicode"
 
-	"mlib.com/confy/cast"
+	"github.com/odysseythink/confy/cast"
 )
 
 // ConfigParseError denotes failing to parse configuration file.
