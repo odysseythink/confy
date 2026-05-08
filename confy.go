@@ -1732,10 +1732,13 @@ func (v *Confy) getConfigType() string {
 }
 
 func (v *Confy) getConfigFile() (string, error) {
-	if v.configFile == "" {
-		return "", errors.New("no config file provided")
+	if v.configFile != "" {
+		return v.configFile, nil
 	}
-	return v.configFile, nil
+	if v.configName == "" {
+		return "", errors.New("no config file or config name provided")
+	}
+	return v.findConfigFile()
 }
 
 // Debug prints all configuration registries for debugging
