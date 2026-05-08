@@ -68,3 +68,27 @@ name = myapp
 		t.Fatalf("expected myapp, got %v", output["server.name"])
 	}
 }
+
+func TestTomlCodec(t *testing.T) {
+	codec := tomlCodec{}
+	input := map[string]any{
+		"title": "Test",
+		"owner": map[string]any{
+			"name": "Tom",
+		},
+	}
+	b, err := codec.Encode(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	output := make(map[string]any)
+	err = codec.Decode(b, output)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if output["title"] != "Test" {
+		t.Fatalf("expected Test, got %v", output["title"])
+	}
+}

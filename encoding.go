@@ -170,6 +170,9 @@ func (r *DefaultCodecRegistry) codec(format string) (Codec, bool) {
 
 	case "ini":
 		return iniCodec{}, true
+
+	case "toml":
+		return tomlCodec{}, true
 	}
 
 	return nil, false
