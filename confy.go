@@ -133,6 +133,8 @@ type Confy struct {
 	configType        string
 	configPermissions os.FileMode
 
+	fs FS
+
 	parents        []string
 	config         map[string]any
 	override       map[string]any
@@ -160,6 +162,7 @@ func New() *Confy {
 	v.keyDelim = "."
 	v.configName = "config"
 	v.configPermissions = os.FileMode(0o644)
+	v.fs = osFS{}
 	v.config = make(map[string]any)
 	v.parents = []string{}
 	v.override = make(map[string]any)
@@ -346,6 +349,14 @@ func (v *Confy) SetConfigFile(in string) {
 	if in != "" {
 		v.configFile = in
 	}
+}
+
+// SetFS sets the file system implementation for Confy.
+func SetFS(fs FS) { v.SetFS(fs) }
+
+// SetFS sets the file system implementation for Confy.
+func (v *Confy) SetFS(fs FS) {
+	v.fs = fs
 }
 
 // ConfigFileUsed returns the file used to populate the config registry.
@@ -1333,7 +1344,7 @@ func (v *Confy) WriteConfigTo(w io.Writer) error {
 func SafeWriteConfigAs(filename string) error { return v.SafeWriteConfigAs(filename) }
 
 func (v *Confy) SafeWriteConfigAs(filename string) error {
-	alreadyExists, err := exists(filename)
+	alreadyExists, err := exists(v.fs, filename)
 	if alreadyExists && err == nil {
 		return ConfigFileAlreadyExistsError(filename)
 	}
@@ -1708,10 +1719,13 @@ func (v *Confy) getConfigType() string {
 }
 
 func (v *Confy) getConfigFile() (string, error) {
-	if v.configFile == "" {
-		return "", errors.New("no config file provided")
+	if v.configFile != "" {
+		return v.configFile, nil
 	}
-	return v.configFile, nil
+	if v.configName == "" {
+		return "", errors.New("no config file or config name provided")
+	}
+	return v.findConfigFile()
 }
 
 // Debug prints all configuration registries for debugging
