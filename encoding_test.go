@@ -92,3 +92,82 @@ func TestTomlCodec(t *testing.T) {
 		t.Fatalf("expected Test, got %v", output["title"])
 	}
 }
+
+
+func TestWithEncoderRegistry(t *testing.T) {
+	reg := NewCodecRegistry()
+	_ = reg.RegisterCodec("custom", jsonCodec{})
+	v := NewWithOptions(WithEncoderRegistry(reg))
+	enc, err := v.encoderRegistry.Encoder("custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enc == nil {
+		t.Fatal("expected encoder")
+	}
+}
+
+func TestWithDecoderRegistry(t *testing.T) {
+	reg := NewCodecRegistry()
+	_ = reg.RegisterCodec("custom", jsonCodec{})
+	v := NewWithOptions(WithDecoderRegistry(reg))
+	dec, err := v.decoderRegistry.Decoder("custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dec == nil {
+		t.Fatal("expected decoder")
+	}
+}
+
+func TestWithCodecRegistry(t *testing.T) {
+	reg := NewCodecRegistry()
+	_ = reg.RegisterCodec("custom", jsonCodec{})
+	v := NewWithOptions(WithCodecRegistry(reg))
+	enc, err := v.encoderRegistry.Encoder("custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dec, err := v.decoderRegistry.Decoder("custom")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if enc == nil || dec == nil {
+		t.Fatal("expected codec")
+	}
+}
+
+func TestWithCodecRegistryNil(t *testing.T) {
+	v := NewWithOptions(WithCodecRegistry(nil))
+	if v.encoderRegistry == nil {
+		t.Fatal("expected default encoder registry")
+	}
+}
+
+func TestDefaultCodecRegistryRegisterCodec(t *testing.T) {
+	reg := NewCodecRegistry()
+	err := reg.RegisterCodec("custom", jsonCodec{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	codec, ok := reg.codec("custom")
+	if !ok || codec == nil {
+		t.Fatal("expected registered codec")
+	}
+}
+
+func TestDefaultCodecRegistryEncoderNotFound(t *testing.T) {
+	reg := NewCodecRegistry()
+	_, err := reg.Encoder("unknown")
+	if err == nil {
+		t.Fatal("expected error for unknown encoder")
+	}
+}
+
+func TestDefaultCodecRegistryDecoderNotFound(t *testing.T) {
+	reg := NewCodecRegistry()
+	_, err := reg.Decoder("unknown")
+	if err == nil {
+		t.Fatal("expected error for unknown decoder")
+	}
+}
