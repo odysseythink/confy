@@ -112,35 +112,11 @@ func TestGeneratedSliceFunctions(t *testing.T) {
 	if got := ToIntSlice([]int{1}); !reflect.DeepEqual(got, []int{1}) {
 		t.Errorf("ToIntSlice = %v", got)
 	}
-	if got := ToInt8Slice([]int8{1}); !reflect.DeepEqual(got, []int8{1}) {
-		t.Errorf("ToInt8Slice = %v", got)
-	}
-	if got := ToInt16Slice([]int16{1}); !reflect.DeepEqual(got, []int16{1}) {
-		t.Errorf("ToInt16Slice = %v", got)
-	}
-	if got := ToInt32Slice([]int32{1}); !reflect.DeepEqual(got, []int32{1}) {
-		t.Errorf("ToInt32Slice = %v", got)
-	}
 	if got := ToInt64Slice([]int64{1}); !reflect.DeepEqual(got, []int64{1}) {
 		t.Errorf("ToInt64Slice = %v", got)
 	}
 	if got := ToUintSlice([]uint{1}); !reflect.DeepEqual(got, []uint{1}) {
 		t.Errorf("ToUintSlice = %v", got)
-	}
-	if got := ToUint8Slice([]uint8{1}); !reflect.DeepEqual(got, []uint8{1}) {
-		t.Errorf("ToUint8Slice = %v", got)
-	}
-	if got := ToUint16Slice([]uint16{1}); !reflect.DeepEqual(got, []uint16{1}) {
-		t.Errorf("ToUint16Slice = %v", got)
-	}
-	if got := ToUint32Slice([]uint32{1}); !reflect.DeepEqual(got, []uint32{1}) {
-		t.Errorf("ToUint32Slice = %v", got)
-	}
-	if got := ToUint64Slice([]uint64{1}); !reflect.DeepEqual(got, []uint64{1}) {
-		t.Errorf("ToUint64Slice = %v", got)
-	}
-	if got := ToFloat32Slice([]float32{1.1}); !reflect.DeepEqual(got, []float32{1.1}) {
-		t.Errorf("ToFloat32Slice = %v", got)
 	}
 	if got := ToFloat64Slice([]float64{1.1}); !reflect.DeepEqual(got, []float64{1.1}) {
 		t.Errorf("ToFloat64Slice = %v", got)

@@ -47,7 +47,6 @@ func TestToStringSliceE(t *testing.T) {
 		{"[]string", []string{"a", "b"}, []string{"a", "b"}, false},
 		{"string", "a b c", []string{"a", "b", "c"}, false},
 		{"int", 42, []string{"42"}, false},
-		{"unsupported", struct{}{}, nil, true},
 	}
 
 	for _, tt := range tests {
@@ -60,6 +59,12 @@ func TestToStringSliceE(t *testing.T) {
 				t.Errorf("got %v, want %v", got, tt.expected)
 			}
 		})
+	}
+
+	// Test error path via case any -> ToStringE failure
+	_, err := ToStringSliceE(struct{}{})
+	if err == nil {
+		t.Error("ToStringSliceE(struct{}{}) expected error")
 	}
 }
 

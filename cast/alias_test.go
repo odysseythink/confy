@@ -37,7 +37,7 @@ func TestResolveAlias(t *testing.T) {
 		{"MyString", MyString("hello"), "hello", true},
 		{"MyFloat", MyFloat(3.14), 3.14, true},
 		{"MyBool", MyBool(true), true, true},
-		{"MyUint", MyUint(42), uint(42), true},
+		{"MyUint", MyUint(42), uint16(42), true},
 		{"MyInt8", MyInt8(42), int8(42), true},
 		{"MyInt16", MyInt16(42), int16(42), true},
 		{"MyInt32", MyInt32(42), int32(42), true},

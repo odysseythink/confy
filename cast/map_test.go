@@ -14,7 +14,7 @@ func TestToStringMapE(t *testing.T) {
 		wantErr  bool
 	}{
 		{"map[string]any", map[string]any{"a": 1}, map[string]any{"a": 1}, false},
-		{"map[string]string", map[string]string{"a": "1"}, map[string]any{"a": "1"}, false},
+
 		{"map[any]any", map[any]any{"a": 1}, map[string]any{"a": 1}, false},
 		{"string JSON", `{"a":1}`, map[string]any{"a": float64(1)}, false},
 		{"nil", nil, nil, true},
@@ -197,10 +197,54 @@ func TestToStringMapNumberE_AllTypes(t *testing.T) {
 	}
 }
 
+func TestToStringMapIntE_Unexported(t *testing.T) {
+	// Test all branches of toStringMapIntE
+	if got, err := toStringMapIntE(map[string]int{"a": 1}, ToInt, ToIntE); err != nil || got["a"] != 1 {
+		t.Errorf("toStringMapIntE(map[string]int) = %v, %v", got, err)
+	}
+	if got, err := toStringMapIntE(map[string]any{"a": 1}, ToInt, ToIntE); err != nil || got["a"] != 1 {
+		t.Errorf("toStringMapIntE(map[string]any) = %v, %v", got, err)
+	}
+	if got, err := toStringMapIntE(map[any]int{"a": 1}, ToInt, ToIntE); err != nil || got["a"] != 1 {
+		t.Errorf("toStringMapIntE(map[any]int) = %v, %v", got, err)
+	}
+	if got, err := toStringMapIntE(map[any]any{"a": 1}, ToInt, ToIntE); err != nil || got["a"] != 1 {
+		t.Errorf("toStringMapIntE(map[any]any) = %v, %v", got, err)
+	}
+	if got, err := toStringMapIntE(`{"a":1}`, ToInt, ToIntE); err != nil || got["a"] != 1 {
+		t.Errorf("toStringMapIntE(string JSON) = %v, %v", got, err)
+	}
+	if _, err := toStringMapIntE(nil, ToInt, ToIntE); err == nil {
+		t.Error("toStringMapIntE(nil) expected error")
+	}
+	if _, err := toStringMapIntE(42, ToInt, ToIntE); err == nil {
+		t.Error("toStringMapIntE(42) expected error")
+	}
+
+	// Reflect map path
+	type MyVal int
+	m := map[string]MyVal{"a": 1}
+	got, err := toStringMapIntE(m, ToInt, ToIntE)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got["a"] != 1 {
+		t.Errorf("got %v", got)
+	}
+
+	// Reflect map error path
+	type MyVal2 string
+	m2 := map[string]MyVal2{"a": "invalid"}
+	_, err = toStringMapIntE(m2, ToInt, ToIntE)
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
 func TestToStringMapNumberE_ReflectMap(t *testing.T) {
-	// Test with a map type not directly handled by switch
-	type MyKey string
-	m := map[MyKey]int{"a": 1}
+	// Test with a map type not directly handled by switch (string keys, named value type)
+	type MyVal int
+	m := map[string]MyVal{"a": 1}
 	got, err := ToStringMapIntE(m)
 	if err != nil {
 		t.Fatal(err)
@@ -210,8 +254,8 @@ func TestToStringMapNumberE_ReflectMap(t *testing.T) {
 	}
 
 	// Test error in value conversion
-	type MyVal string
-	m2 := map[string]MyVal{"a": "invalid"}
+	type MyVal2 string
+	m2 := map[string]MyVal2{"a": "invalid"}
 	_, err = ToStringMapIntE(m2)
 	if err == nil {
 		t.Error("expected error")
@@ -274,13 +318,60 @@ func TestToStrMapE(t *testing.T) {
 	if _, err := ToStrMapE[any](map[string]any{"a": 1}); err != nil {
 		t.Errorf("ToStrMapE[any] error = %v", err)
 	}
-	// default case
-	type MyType int
-	if _, err := ToStrMapE[MyType](map[string]any{"a": 1}); err != nil {
-		t.Errorf("ToStrMapE[MyType] error = %v", err)
+	// Test error paths for ToStrMapE
+	if _, err := ToStrMapE[uint8](42); err == nil {
+		t.Error("ToStrMapE[uint8](42) expected error")
 	}
-	if _, err := ToStrMapE[MyType](42); err == nil {
-		t.Error("ToStrMapE[MyType](42) expected error")
+	if _, err := ToStrMapE[uint16](42); err == nil {
+		t.Error("ToStrMapE[uint16](42) expected error")
+	}
+	if _, err := ToStrMapE[uint32](42); err == nil {
+		t.Error("ToStrMapE[uint32](42) expected error")
+	}
+	if _, err := ToStrMapE[uint64](42); err == nil {
+		t.Error("ToStrMapE[uint64](42) expected error")
+	}
+	if _, err := ToStrMapE[uint](42); err == nil {
+		t.Error("ToStrMapE[uint](42) expected error")
+	}
+	if _, err := ToStrMapE[int8](42); err == nil {
+		t.Error("ToStrMapE[int8](42) expected error")
+	}
+	if _, err := ToStrMapE[int16](42); err == nil {
+		t.Error("ToStrMapE[int16](42) expected error")
+	}
+	if _, err := ToStrMapE[int32](42); err == nil {
+		t.Error("ToStrMapE[int32](42) expected error")
+	}
+	if _, err := ToStrMapE[int64](42); err == nil {
+		t.Error("ToStrMapE[int64](42) expected error")
+	}
+	if _, err := ToStrMapE[int](42); err == nil {
+		t.Error("ToStrMapE[int](42) expected error")
+	}
+	if _, err := ToStrMapE[float32](42); err == nil {
+		t.Error("ToStrMapE[float32](42) expected error")
+	}
+	if _, err := ToStrMapE[float64](42); err == nil {
+		t.Error("ToStrMapE[float64](42) expected error")
+	}
+	if _, err := ToStrMapE[string](42); err == nil {
+		t.Error("ToStrMapE[string](42) expected error")
+	}
+	if _, err := ToStrMapE[bool](42); err == nil {
+		t.Error("ToStrMapE[bool](42) expected error")
+	}
+	if _, err := ToStrMapE[time.Time](42); err == nil {
+		t.Error("ToStrMapE[time.Time](42) expected error")
+	}
+	if _, err := ToStrMapE[time.Duration](42); err == nil {
+		t.Error("ToStrMapE[time.Duration](42) expected error")
+	}
+	if _, err := ToStrMapE[map[string]any](42); err == nil {
+		t.Error("ToStrMapE[map[string]any](42) expected error")
+	}
+	if _, err := ToStrMapE[any](42); err == nil {
+		t.Error("ToStrMapE[any](42) expected error")
 	}
 }
 

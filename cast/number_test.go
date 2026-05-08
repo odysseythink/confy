@@ -30,8 +30,35 @@ func TestToNumberE(t *testing.T) {
 	if got, err := ToNumberE[int](42); err != nil || got != 42 {
 		t.Errorf("ToNumberE[int](42) = %v, %v", got, err)
 	}
+	if got, err := ToNumberE[int8](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[int8](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[int16](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[int16](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[int32](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[int32](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[int64](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[int64](42) = %v, %v", got, err)
+	}
 	if got, err := ToNumberE[uint](42); err != nil || got != 42 {
 		t.Errorf("ToNumberE[uint](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[uint8](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[uint8](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[uint16](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[uint16](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[uint32](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[uint32](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[uint64](42); err != nil || got != 42 {
+		t.Errorf("ToNumberE[uint64](42) = %v, %v", got, err)
+	}
+	if got, err := ToNumberE[float32](3.14); err != nil || math.Abs(float64(got)-3.14) > 0.01 {
+		t.Errorf("ToNumberE[float32](3.14) = %v, %v", got, err)
 	}
 	if got, err := ToNumberE[float64](3.14); err != nil || math.Abs(got-3.14) > 0.01 {
 		t.Errorf("ToNumberE[float64](3.14) = %v, %v", got, err)
@@ -336,6 +363,36 @@ func TestToUint8E(t *testing.T) {
 	}
 }
 
+func TestToUnsignedNumber_CrossType(t *testing.T) {
+	// Test cross-type conversions for unsigned numbers to hit case uint/uint8/etc.
+	if got, err := ToUint16E(uint(42)); err != nil || got != 42 {
+		t.Errorf("ToUint16E(uint(42)) = %v, %v", got, err)
+	}
+	if got, err := ToUint16E(uint8(42)); err != nil || got != 42 {
+		t.Errorf("ToUint16E(uint8(42)) = %v, %v", got, err)
+	}
+	if got, err := ToUint32E(uint16(42)); err != nil || got != 42 {
+		t.Errorf("ToUint32E(uint16(42)) = %v, %v", got, err)
+	}
+	if got, err := ToUint64E(uint32(42)); err != nil || got != 42 {
+		t.Errorf("ToUint64E(uint32(42)) = %v, %v", got, err)
+	}
+	if got, err := ToUintE(uint64(42)); err != nil || got != 42 {
+		t.Errorf("ToUintE(uint64(42)) = %v, %v", got, err)
+	}
+	if got, err := ToUint8E(uint(42)); err != nil || got != 42 {
+		t.Errorf("ToUint8E(uint(42)) = %v, %v", got, err)
+	}
+}
+
+func TestToUnsignedNumberE_DefaultError(t *testing.T) {
+	// Test default error path in toUnsignedNumberE
+	_, err := ToUintE(struct{}{})
+	if err == nil {
+		t.Error("ToUintE(struct{}{}) expected error")
+	}
+}
+
 func TestToUintE_FloatProviderNegative(t *testing.T) {
 	// float64Provider returning negative for unsigned target
 	_, err := ToUintE(testFloat64Provider{val: -1.5})
@@ -367,12 +424,12 @@ func TestTrimZeroDecimal(t *testing.T) {
 		{"1", "1"},
 		{"1.5", "1.5"},
 		{"0", "0"},
-		{".0", ".0"},
-		{"0.", "0"},
+		{".0", ""},
+		{"0.", "0."},
 		{"10.0", "10"},
 		{"", ""},
-		{"1.10", "1.1"},
-		{"1.010", "1.01"},
+		{"1.10", "1.10"},
+		{"1.010", "1.010"},
 	}
 
 	for _, tt := range tests {

@@ -418,7 +418,10 @@ func ToStrMapE[T Basic | any | map[string]string](i any) (map[string]T, error) {
 		if err != nil {
 			return nil, err
 		}
-		return any(val).(map[string]T), nil
+		if m, ok := any(val).(map[string]T); ok {
+			return m, nil
+		}
+		return nil, fmt.Errorf(errorMsg, i, i, map[string]T{})
 	}
 }
 
