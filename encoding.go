@@ -167,6 +167,9 @@ func (r *DefaultCodecRegistry) codec(format string) (Codec, bool) {
 
 	case "dotenv", "env":
 		return dotenvCodec{}, true
+
+	case "ini":
+		return iniCodec{}, true
 	}
 
 	return nil, false
