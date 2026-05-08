@@ -143,6 +143,12 @@ type Confy struct {
 	aliases        map[string]string
 	typeByDefValue bool
 
+	envPrefix           string
+	automaticEnvApplied bool
+	envKeyReplacer      StringReplacer
+	allowEmptyEnv       bool
+	env                 map[string][]string
+
 	onConfigChange func(fsnotify.Event)
 
 	logger *slog.Logger
@@ -169,6 +175,7 @@ func New() *Confy {
 	v.defaults = make(map[string]any)
 	v.kvstore = make(map[string]any)
 	v.aliases = make(map[string]string)
+	v.env = make(map[string][]string)
 	v.typeByDefValue = false
 	v.logger = slog.New(&discardHandler{})
 
@@ -552,6 +559,11 @@ func (v *Confy) isPathShadowedInFlatMap(path []string, mi any) string {
 	switch miv := mi.(type) {
 	case map[string]string:
 		m = castMapStringToMapInterface(miv)
+	case map[string][]string:
+		m = make(map[string]any, len(miv))
+		for k := range miv {
+			m[k] = true
+		}
 	default:
 		return ""
 	}
@@ -587,6 +599,80 @@ func (v *Confy) SetTypeByDefaultValue(enable bool) {
 	v.typeByDefValue = enable
 }
 
+func SetEnvPrefix(in string) { v.SetEnvPrefix(in) }
+func (v *Confy) SetEnvPrefix(in string) {
+	if in != "" {
+		v.envPrefix = in
+	}
+}
+
+func GetEnvPrefix() string { return v.GetEnvPrefix() }
+func (v *Confy) GetEnvPrefix() string {
+	return v.envPrefix
+}
+
+func AutomaticEnv() { v.AutomaticEnv() }
+func (v *Confy) AutomaticEnv() {
+	v.automaticEnvApplied = true
+}
+
+func AllowEmptyEnv(allowEmptyEnv bool) { v.AllowEmptyEnv(allowEmptyEnv) }
+func (v *Confy) AllowEmptyEnv(allowEmptyEnv bool) {
+	v.allowEmptyEnv = allowEmptyEnv
+}
+
+func SetEnvKeyReplacer(r StringReplacer) { v.SetEnvKeyReplacer(r) }
+func (v *Confy) SetEnvKeyReplacer(r StringReplacer) {
+	v.envKeyReplacer = r
+}
+
+func BindEnv(input ...string) error { return v.BindEnv(input...) }
+func (v *Confy) BindEnv(input ...string) error {
+	if len(input) == 0 {
+		return fmt.Errorf("missing key to bind to")
+	}
+	key := strings.ToLower(input[0])
+	if len(input) == 1 {
+		v.env[key] = append(v.env[key], v.mergeWithEnvPrefix(key))
+	} else {
+		v.env[key] = append(v.env[key], input[1:]...)
+	}
+	return nil
+}
+
+func MustBindEnv(input ...string) { v.MustBindEnv(input...) }
+func (v *Confy) MustBindEnv(input ...string) {
+	if err := v.BindEnv(input...); err != nil {
+		panic(fmt.Sprintf("error while binding environment variable: %v", err))
+	}
+}
+
+func (v *Confy) mergeWithEnvPrefix(in string) string {
+	if v.envPrefix != "" {
+		return strings.ToUpper(v.envPrefix + "_" + in)
+	}
+	return strings.ToUpper(in)
+}
+
+func (v *Confy) getEnv(key string) (string, bool) {
+	if v.envKeyReplacer != nil {
+		key = v.envKeyReplacer.Replace(key)
+	}
+	val, ok := os.LookupEnv(key)
+	return val, ok && (v.allowEmptyEnv || val != "")
+}
+
+func (v *Confy) isPathShadowedInAutoEnv(path []string) string {
+	var parentKey string
+	for i := 1; i < len(path); i++ {
+		parentKey = strings.Join(path[0:i], v.keyDelim)
+		if _, ok := v.getEnv(v.mergeWithEnvPrefix(parentKey)); ok {
+			return parentKey
+		}
+	}
+	return ""
+}
+
 // GetConfy gets the global Confy instance.
 func GetConfy() *Confy {
 	return v
@@ -617,7 +703,7 @@ func GetWithDefault[T cast.Basic | []string | []int | []map[string]any](key stri
 
 func (v *Confy) Get(key string) any {
 	lcaseKey := strings.ToLower(key)
-	val := v.find(lcaseKey)
+	val := v.find(lcaseKey, true)
 	if val == nil {
 		return nil
 	}
@@ -680,6 +766,10 @@ func (v *Confy) Sub(key string) *Confy {
 		subv.parents = append([]string(nil), v.parents...)
 		subv.parents = append(subv.parents, strings.ToLower(key))
 		subv.keyDelim = v.keyDelim
+		subv.automaticEnvApplied = v.automaticEnvApplied
+		subv.envPrefix = v.envPrefix
+		subv.envKeyReplacer = v.envKeyReplacer
+		subv.allowEmptyEnv = v.allowEmptyEnv
 		subv.config = cast.ToStringMap(data)
 		return subv
 	}
@@ -982,7 +1072,7 @@ func (v *Confy) UnmarshalExact(rawVal any, opts ...DecoderConfigOption) error {
 // config file, key/value store.
 //
 // Note: this assumes a lower-cased key given.
-func (v *Confy) find(lcaseKey string) any {
+func (v *Confy) find(lcaseKey string, flagDefault bool) any {
 	var (
 		val    any
 		path   = strings.Split(lcaseKey, v.keyDelim)
@@ -1005,6 +1095,28 @@ func (v *Confy) find(lcaseKey string) any {
 		return val
 	}
 	if nested && v.isPathShadowedInDeepMap(path, v.override) != "" {
+		return nil
+	}
+
+	// Env override next
+	if v.automaticEnvApplied {
+		envKey := strings.Join(append(v.parents, lcaseKey), ".")
+		if val, ok := v.getEnv(v.mergeWithEnvPrefix(envKey)); ok {
+			return val
+		}
+		if nested && v.isPathShadowedInAutoEnv(path) != "" {
+			return nil
+		}
+	}
+	envkeys, exists := v.env[lcaseKey]
+	if exists {
+		for _, envkey := range envkeys {
+			if val, ok := v.getEnv(envkey); ok {
+				return val
+			}
+		}
+	}
+	if nested && v.isPathShadowedInFlatMap(path, v.env) != "" {
 		return nil
 	}
 
@@ -1099,7 +1211,7 @@ func IsSet(key string) bool { return v.IsSet(key) }
 
 func (v *Confy) IsSet(key string) bool {
 	lcaseKey := strings.ToLower(key)
-	val := v.find(lcaseKey)
+	val := v.find(lcaseKey, false)
 	return val != nil
 }
 
