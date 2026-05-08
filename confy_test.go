@@ -25,3 +25,29 @@ func TestWriteConfig(t *testing.T) {
 		t.Errorf("write config failed:%v", err)
 	}
 }
+
+func TestAllSettings(t *testing.T) {
+	Reset()
+	SetDefault("name", "default")
+	Set("name", "override")
+	all := AllSettings()
+	if all["name"] != "override" {
+		t.Fatalf("expected override, got %v", all["name"])
+	}
+}
+
+func TestMergeConfigMap(t *testing.T) {
+	Reset()
+	Set("a.b", "1")
+	MergeConfigMap(map[string]any{
+		"a": map[string]any{
+			"c": "2",
+		},
+	})
+	if GetString("a.b") != "1" {
+		t.Fatalf("expected 1, got %s", GetString("a.b"))
+	}
+	if GetString("a.c") != "2" {
+		t.Fatalf("expected 2, got %s", GetString("a.c"))
+	}
+}
