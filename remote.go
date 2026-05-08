@@ -207,6 +207,10 @@ func (v *Confy) getRemoteConfig(provider RemoteProvider) (map[string]any, error)
 
 // Retrieve the first found remote configuration.
 func (v *Confy) watchKeyValueConfigOnChannel() error {
+	if RemoteConfig == nil {
+		return RemoteConfigError("Enable the remote features by doing a blank import of the confy/remote package: '_ github.com/odysseythink/confy/remote'")
+	}
+
 	if len(v.remoteProviders) == 0 {
 		return RemoteConfigError("No Remote Providers")
 	}
@@ -231,6 +235,10 @@ func (v *Confy) watchKeyValueConfigOnChannel() error {
 
 // Retrieve the first found remote configuration.
 func (v *Confy) watchKeyValueConfig() error {
+	if RemoteConfig == nil {
+		return RemoteConfigError("Enable the remote features by doing a blank import of the confy/remote package: '_ github.com/odysseythink/confy/remote'")
+	}
+
 	if len(v.remoteProviders) == 0 {
 		return RemoteConfigError("No Remote Providers")
 	}

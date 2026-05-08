@@ -164,6 +164,15 @@ func (r *DefaultCodecRegistry) codec(format string) (Codec, bool) {
 
 	case "json":
 		return jsonCodec{}, true
+
+	case "dotenv", "env":
+		return dotenvCodec{}, true
+
+	case "ini":
+		return iniCodec{}, true
+
+	case "toml":
+		return tomlCodec{}, true
 	}
 
 	return nil, false
