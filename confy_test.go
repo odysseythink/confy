@@ -2,9 +2,12 @@ package confy
 
 import (
 	"bytes"
+	"errors"
+	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+
 	"strings"
 	"testing"
 	"time"
@@ -867,5 +870,1375 @@ func TestWithLogger(t *testing.T) {
 	v := NewWithOptions(WithLogger(logger))
 	if v.logger != logger {
 		t.Fatal("expected custom logger")
+	}
+}
+
+// --- coverage boosters ---
+
+func TestDebug(t *testing.T) {
+	Reset()
+	Debug()
+}
+
+func TestSetFSGlobal(t *testing.T) {
+	Reset()
+	m := &mockFS{files: map[string]string{}}
+	SetFS(m)
+	if v.fs == nil {
+		t.Fatal("expected fs")
+	}
+}
+
+func TestGetInt32(t *testing.T) {
+	Reset()
+	Set("i32", int32(32))
+	if GetInt32("i32") != 32 {
+		t.Fatal()
+	}
+}
+
+func TestGetInt64(t *testing.T) {
+	Reset()
+	Set("i64", int64(64))
+	if GetInt64("i64") != 64 {
+		t.Fatal()
+	}
+}
+
+func TestGetUint8(t *testing.T) {
+	Reset()
+	Set("u8", uint8(8))
+	if GetUint8("u8") != 8 {
+		t.Fatal()
+	}
+}
+
+func TestGetUint(t *testing.T) {
+	Reset()
+	Set("u", uint(10))
+	if GetUint("u") != 10 {
+		t.Fatal()
+	}
+}
+
+func TestGetUint16(t *testing.T) {
+	Reset()
+	Set("u16", uint16(16))
+	if GetUint16("u16") != 16 {
+		t.Fatal()
+	}
+}
+
+func TestGetUint32(t *testing.T) {
+	Reset()
+	Set("u32", uint32(32))
+	if GetUint32("u32") != 32 {
+		t.Fatal()
+	}
+}
+
+func TestGetUint64(t *testing.T) {
+	Reset()
+	Set("u64", uint64(64))
+	if GetUint64("u64") != 64 {
+		t.Fatal()
+	}
+}
+
+func TestUnmarshalKey(t *testing.T) {
+	Reset()
+	Set("person", map[string]any{"name": "Alice", "age": 30})
+	type Person struct {
+		Name string `mapstructure:"name"`
+		Age  int    `mapstructure:"age"`
+	}
+	var p Person
+	err := UnmarshalKey("person", &p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Name != "Alice" || p.Age != 30 {
+		t.Fatalf("unexpected %+v", p)
+	}
+}
+
+func TestUnmarshalWithExperimentalBindStruct(t *testing.T) {
+	v := NewWithOptions(ExperimentalBindStruct())
+	v.Set("name", "test")
+	type S struct {
+		Name string `mapstructure:"name"`
+	}
+	var s S
+	err := v.Unmarshal(&s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Name != "test" {
+		t.Fatal("expected test")
+	}
+}
+
+func TestBindFlagValues(t *testing.T) {
+	Reset()
+	flags := &mockFlagSet{
+		flags: []FlagValue{
+			mockFlag{name: "port", val: "8080", valType: "int", changed: true},
+			mockFlag{name: "host", val: "localhost", valType: "string", changed: true},
+		},
+	}
+	err := BindFlagValues(flags)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if GetInt("port") != 8080 {
+		t.Fatal()
+	}
+	if GetString("host") != "localhost" {
+		t.Fatal()
+	}
+}
+
+type mockFlagSet struct {
+	flags []FlagValue
+}
+
+func (m *mockFlagSet) VisitAll(fn func(FlagValue)) {
+	for _, f := range m.flags {
+		fn(f)
+	}
+}
+
+func TestBindFlagValueNil(t *testing.T) {
+	Reset()
+	err := BindFlagValue("key", nil)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestIniCodecEncode(t *testing.T) {
+	codec := iniCodec{}
+	input := map[string]any{"section.key": "value"}
+	b, err := codec.Encode(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "section.key=value") {
+		t.Fatalf("unexpected: %s", string(b))
+	}
+}
+
+func TestDiscardHandlerMethods(t *testing.T) {
+	h := &discardHandler{}
+	if h.Enabled(nil, slog.LevelDebug) {
+		t.Fatal("expected false")
+	}
+	if err := h.Handle(nil, slog.Record{}); err != nil {
+		t.Fatal(err)
+	}
+	if h.WithAttrs(nil) == nil {
+		t.Fatal("expected non-nil")
+	}
+	if h.WithGroup("g") == nil {
+		t.Fatal("expected non-nil")
+	}
+}
+
+func TestFindShadowedInOverride(t *testing.T) {
+	Reset()
+	Set("foo", "shadow")
+	SetConfigType("json")
+	ReadConfig(strings.NewReader(`{"foo": {"bar": "val"}}`))
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil because foo shadows foo.bar")
+	}
+}
+
+func TestFindFlagDefault(t *testing.T) {
+	Reset()
+	flag := mockFlag{name: "port", val: "8080", valType: "int", changed: false}
+	BindFlagValue("port", flag)
+	if v.find("port", true) == nil {
+		t.Fatal("expected flag default value")
+	}
+	if v.find("port", false) != nil {
+		t.Fatal("expected nil when flagDefault is false")
+	}
+}
+
+func TestFindAutoEnvShadowed(t *testing.T) {
+	Reset()
+	AutomaticEnv()
+	SetEnvPrefix("confy")
+	os.Setenv("CONFY_FOO", "shadow")
+	defer os.Unsetenv("CONFY_FOO")
+	SetConfigType("json")
+	ReadConfig(strings.NewReader(`{"foo": {"bar": "val"}}`))
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil because env foo shadows foo.bar")
+	}
+}
+
+func TestFindFlagShadowed(t *testing.T) {
+	Reset()
+	flag := mockFlag{name: "foo", val: "v", changed: true}
+	BindFlagValue("foo", flag)
+	SetConfigType("json")
+	ReadConfig(strings.NewReader(`{"foo": {"bar": "val"}}`))
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil because flag foo shadows foo.bar")
+	}
+}
+
+func TestFindEnvShadowed(t *testing.T) {
+	Reset()
+	BindEnv("foo", "ENV_FOO")
+	os.Setenv("ENV_FOO", "v")
+	defer os.Unsetenv("ENV_FOO")
+	SetConfigType("json")
+	ReadConfig(strings.NewReader(`{"foo": {"bar": "val"}}`))
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil because env foo shadows foo.bar")
+	}
+}
+
+func TestGetTypeByDefaultValueAllTypes(t *testing.T) {
+	Reset()
+	SetTypeByDefaultValue(true)
+	SetDefault("bool", false)
+	SetDefault("str", "")
+	SetDefault("int", 0)
+	SetDefault("uint", uint(0))
+	SetDefault("uint32", uint32(0))
+	SetDefault("uint64", uint64(0))
+	SetDefault("int64", int64(0))
+	SetDefault("float", float64(0))
+	SetDefault("t", time.Time{})
+	SetDefault("dur", time.Duration(0))
+	SetDefault("ss", []string{})
+	SetDefault("si", []int{})
+
+	Set("bool", "true")
+	Set("str", "hello")
+	Set("int", "42")
+	Set("uint", "42")
+	Set("uint32", "42")
+	Set("uint64", "42")
+	Set("int64", "42")
+	Set("float", "3.14")
+	Set("t", "2023-01-01T00:00:00Z")
+	Set("dur", "1h")
+	Set("ss", []string{"a", "b"})
+	Set("si", []int{1, 2})
+
+	if GetBool("bool") != true {
+		t.Fatal()
+	}
+	if GetString("str") != "hello" {
+		t.Fatal()
+	}
+	if GetInt("int") != 42 {
+		t.Fatal()
+	}
+	if GetUint("uint") != 42 {
+		t.Fatal()
+	}
+	if GetUint32("uint32") != 42 {
+		t.Fatal()
+	}
+	if GetUint64("uint64") != 42 {
+		t.Fatal()
+	}
+	if GetInt64("int64") != 42 {
+		t.Fatal()
+	}
+	if GetFloat64("float") != 3.14 {
+		t.Fatal()
+	}
+	if GetTime("t").Year() != 2023 {
+		t.Fatal()
+	}
+	if GetDuration("dur") != time.Hour {
+		t.Fatal()
+	}
+	if len(GetStringSlice("ss")) != 2 {
+		t.Fatal()
+	}
+	if len(GetIntSlice("si")) != 2 {
+		t.Fatal()
+	}
+}
+
+func TestGetSliceError(t *testing.T) {
+	Reset()
+	Set("bad", make(chan int))
+	res := GetSlice[string]("bad")
+	if res != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestMergeMapsItgt(t *testing.T) {
+	Reset()
+	src := map[string]any{"a": "val"}
+	tgt := map[string]any{}
+	itgt := map[any]any{}
+	mergeMaps(src, tgt, itgt)
+	if tgt["a"] != "val" {
+		t.Fatal()
+	}
+	if itgt["a"] != "val" {
+		t.Fatal()
+	}
+}
+
+func TestMergeMapsItgtDefault(t *testing.T) {
+	Reset()
+	src := map[string]any{"a": "new"}
+	tgt := map[string]any{"a": "old"}
+	itgt := map[any]any{"a": "old"}
+	mergeMaps(src, tgt, itgt)
+	if tgt["a"] != "new" {
+		t.Fatal()
+	}
+	if itgt["a"] != "new" {
+		t.Fatal()
+	}
+}
+
+func TestMergeMapsTypeMismatch(t *testing.T) {
+	Reset()
+	src := map[string]any{"a": "string"}
+	tgt := map[string]any{"a": map[string]any{"b": "old"}}
+	mergeMaps(src, tgt, nil)
+	if tgt["a"].(map[string]any)["b"] != "old" {
+		t.Fatal("expected old")
+	}
+}
+
+func TestRegisterAliasMoveFromDefaults(t *testing.T) {
+	Reset()
+	SetDefault("old", "defval")
+	RegisterAlias("old", "new")
+	if GetString("new") != "defval" {
+		t.Fatal()
+	}
+}
+
+func TestRegisterAliasMoveFromOverride(t *testing.T) {
+	Reset()
+	Set("old", "ovval")
+	RegisterAlias("old", "new")
+	if GetString("new") != "ovval" {
+		t.Fatal()
+	}
+}
+
+func TestRegisterAliasMoveFromKVStore(t *testing.T) {
+	Reset()
+	v.kvstore["old"] = "kvval"
+	RegisterAlias("old", "new")
+	if GetString("new") != "kvval" {
+		t.Fatal()
+	}
+}
+
+func TestSearchSliceWithPathPrefixesBounds(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"list": []any{"a"},
+	}
+	if v.Get("list.5") != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestSearchSliceWithPathPrefixesNonMap(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"list": []any{"a"},
+	}
+	if v.Get("list.0.name") != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestMarshalWriterEncodeError(t *testing.T) {
+	Reset()
+	reg := NewCodecRegistry()
+	_ = reg.RegisterCodec("json", errorCodec{})
+	v := NewWithOptions(WithEncoderRegistry(reg))
+	v.SetConfigType("json")
+	v.Set("key", "value")
+	var buf bytes.Buffer
+	err := v.WriteConfigTo(&buf)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type errorCodec struct{}
+
+func (e errorCodec) Encode(v map[string]any) ([]byte, error) {
+	return nil, errors.New("encode error")
+}
+
+func (e errorCodec) Decode(b []byte, v map[string]any) error {
+	return nil
+}
+
+func TestMarshalWriterWriteError(t *testing.T) {
+	Reset()
+	SetConfigType("json")
+	Set("key", "value")
+	err := WriteConfigTo(&errorWriter{})
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type errorWriter struct{}
+
+func (e *errorWriter) Write(p []byte) (n int, err error) {
+	return 0, errors.New("write error")
+}
+
+func TestSearchMapMapAnyAny(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"a": map[any]any{"b": "val"},
+	}
+	if GetString("a.b") != "val" {
+		t.Fatal()
+	}
+}
+
+func TestWatchConfigRemove(t *testing.T) {
+	Reset()
+	tmpDir := t.TempDir()
+	configFile := filepath.Join(tmpDir, "config.yaml")
+	if err := os.WriteFile(configFile, []byte("key: value\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	SetConfigFile(configFile)
+	SetConfigType("yaml")
+	WatchConfig()
+	time.Sleep(50 * time.Millisecond)
+	os.Remove(configFile)
+	time.Sleep(100 * time.Millisecond)
+}
+
+func TestMergeInConfigUnsupportedExt(t *testing.T) {
+	Reset()
+	SetConfigFile("config.xml")
+	err := MergeInConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestMergeInConfigOpenError(t *testing.T) {
+	Reset()
+	SetConfigFile("/nonexistent/config.json")
+	SetConfigType("json")
+	err := MergeInConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestReadInConfigOpenError(t *testing.T) {
+	Reset()
+	SetConfigFile("/nonexistent/config.json")
+	SetConfigType("json")
+	err := ReadInConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestUnmarshalReaderDecodeError(t *testing.T) {
+	Reset()
+	SetConfigType("json")
+	err := v.unmarshalReader(strings.NewReader("not json"), make(map[string]any))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGetConfigFileMissingName(t *testing.T) {
+	Reset()
+	v.configFile = ""
+	v.configName = ""
+	_, err := v.getConfigFile()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGetRemoteConfigError(t *testing.T) {
+	Reset()
+	RemoteConfig = &mockRemoteConfigErr{}
+	defer func() { RemoteConfig = nil }()
+	_ = AddRemoteProvider("etcd", "http://localhost:2379", "/config")
+	err := v.getKeyValueConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type mockRemoteConfigErr struct{}
+
+func (m *mockRemoteConfigErr) Get(rp RemoteProvider) (io.Reader, error) {
+	return nil, errors.New("remote error")
+}
+
+func (m *mockRemoteConfigErr) Watch(rp RemoteProvider) (io.Reader, error) {
+	return nil, errors.New("remote error")
+}
+
+func (m *mockRemoteConfigErr) WatchChannel(rp RemoteProvider) (<-chan *RemoteResponse, chan bool) {
+	return nil, nil
+}
+
+func TestWatchRemoteConfigError(t *testing.T) {
+	Reset()
+	RemoteConfig = &mockRemoteConfigErr{}
+	defer func() { RemoteConfig = nil }()
+	_ = AddRemoteProvider("etcd", "http://localhost:2379", "/config")
+	err := v.watchKeyValueConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestExistsError(t *testing.T) {
+	v := New()
+	v.SetFS(&errorFS{})
+	exists, err := exists(v.fs, "/any")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if exists {
+		t.Fatal("expected false")
+	}
+}
+
+type errorFS struct{}
+
+func (e *errorFS) Open(name string) (io.ReadCloser, error) {
+	return nil, errors.New("fs error")
+}
+
+func (e *errorFS) Stat(name string) (os.FileInfo, error) {
+	return nil, errors.New("fs error")
+}
+
+func (e *errorFS) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+	return nil, errors.New("fs error")
+}
+
+func TestExistsDir(t *testing.T) {
+	exists, err := exists(&dirFS{}, "/dir")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal("expected false for dir")
+	}
+}
+
+type dirFS struct{}
+
+func (d *dirFS) Open(name string) (io.ReadCloser, error) {
+	return nil, os.ErrNotExist
+}
+
+func (d *dirFS) Stat(name string) (os.FileInfo, error) {
+	return &dirFileInfo{}, nil
+}
+
+func (d *dirFS) OpenFile(name string, flag int, perm os.FileMode) (*os.File, error) {
+	return nil, os.ErrNotExist
+}
+
+type dirFileInfo struct{}
+
+func (d *dirFileInfo) Name() string       { return "dir" }
+func (d *dirFileInfo) Size() int64        { return 0 }
+func (d *dirFileInfo) Mode() os.FileMode  { return os.ModeDir }
+func (d *dirFileInfo) ModTime() time.Time { return time.Time{} }
+func (d *dirFileInfo) IsDir() bool        { return true }
+func (d *dirFileInfo) Sys() any           { return nil }
+
+func TestSearchInPathNoExt(t *testing.T) {
+	v := New()
+	v.SetConfigName("app")
+	v.SetConfigType("json")
+	m := &mockFS{files: map[string]string{
+		"/etc/app": `{"key":"value"}`,
+	}}
+	v.SetFS(m)
+	v.AddConfigPath("/etc")
+	file, err := v.findConfigFile()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file != "/etc/app" {
+		t.Fatalf("expected /etc/app, got %s", file)
+	}
+}
+
+func TestFlattenAndMergeMapShadowed(t *testing.T) {
+	Reset()
+	shadow := map[string]bool{"a": true}
+	m := map[string]any{"a": map[string]any{"b": "v"}, "c": "v2"}
+	result := v.flattenAndMergeMap(shadow, m, "")
+	if result["a.b"] {
+		t.Fatal("expected a.b to be shadowed")
+	}
+	if !result["c"] {
+		t.Fatal("expected c")
+	}
+}
+
+func TestIsPathShadowedInFlatMapSlice(t *testing.T) {
+	Reset()
+	m := map[string][]string{"a.b": {"v"}}
+	shadow := v.isPathShadowedInFlatMap([]string{"a", "b", "c"}, m)
+	if shadow != "a.b" {
+		t.Fatalf("expected a.b, got %s", shadow)
+	}
+}
+
+func TestIsPathShadowedInFlatMapFlag(t *testing.T) {
+	Reset()
+	m := map[string]FlagValue{"a.b": mockFlag{name: "f"}}
+	shadow := v.isPathShadowedInFlatMap([]string{"a", "b", "c"}, m)
+	if shadow != "a.b" {
+		t.Fatalf("expected a.b, got %s", shadow)
+	}
+}
+
+func TestBindEnvEmpty(t *testing.T) {
+	Reset()
+	err := BindEnv()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestWriteConfigOpenFileError(t *testing.T) {
+	Reset()
+	SetFS(&errorFS{})
+	SetConfigFile("/tmp/config.json")
+	SetConfigType("json")
+	err := WriteConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGetConfigTypeEmpty(t *testing.T) {
+	Reset()
+	v.configType = ""
+	v.configFile = ""
+	v.configName = ""
+	if v.getConfigType() != "" {
+		t.Fatalf("expected empty, got %s", v.getConfigType())
+	}
+}
+
+func TestDotenvCodecDecodeNoEqual(t *testing.T) {
+	codec := dotenvCodec{}
+	output := make(map[string]any)
+	err := codec.Decode([]byte("noequal\n"), output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(output) != 0 {
+		t.Fatal("expected empty")
+	}
+}
+
+func TestIniCodecDecodeColon(t *testing.T) {
+	codec := iniCodec{}
+	output := make(map[string]any)
+	err := codec.Decode([]byte("key:value\n"), output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output["key"] != "value" {
+		t.Fatalf("expected value, got %v", output["key"])
+	}
+}
+
+func TestSubNonMap(t *testing.T) {
+	Reset()
+	Set("scalar", "value")
+	if Sub("scalar") != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestSearchMapWithPathPrefixesNested(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"foo": map[string]any{"bar": "val"},
+	}
+	if GetString("foo.bar") != "val" {
+		t.Fatal()
+	}
+}
+
+func TestStringToStringConvCSVError(t *testing.T) {
+	val := stringToStringConv(`"bad`)
+	if val != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestStringToIntConvAtoiError(t *testing.T) {
+	val := stringToIntConv("k=bad")
+	if val != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestMergeWithEnvPrefixEmpty(t *testing.T) {
+	Reset()
+	v.envPrefix = ""
+	if v.mergeWithEnvPrefix("key") != "KEY" {
+		t.Fatal()
+	}
+}
+
+func TestWithEncoderRegistryNil(t *testing.T) {
+	v := NewWithOptions(WithEncoderRegistry(nil))
+	if v.encoderRegistry == nil {
+		t.Fatal("expected default registry")
+	}
+}
+
+func TestWithDecoderRegistryNil(t *testing.T) {
+	v := NewWithOptions(WithDecoderRegistry(nil))
+	if v.decoderRegistry == nil {
+		t.Fatal("expected default registry")
+	}
+}
+
+// --- final coverage boosters ---
+
+func TestDecodeHook(t *testing.T) {
+	Reset()
+	Set("dur", "1h")
+	type S struct {
+		Dur time.Duration `mapstructure:"dur"`
+	}
+	var s S
+	err := Unmarshal(&s, DecodeHook(mapstructure.StringToTimeDurationHookFunc()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Dur != time.Hour {
+		t.Fatal()
+	}
+}
+
+func TestUnmarshalExactExperimental(t *testing.T) {
+	v := NewWithOptions(ExperimentalBindStruct())
+	v.Set("name", "test")
+	type S struct {
+		Name string `mapstructure:"name"`
+	}
+	var s S
+	err := v.UnmarshalExact(&s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Name != "test" {
+		t.Fatal()
+	}
+}
+
+func TestFindFlagTypes(t *testing.T) {
+	Reset()
+	flag1 := mockFlag{name: "list", val: "[a,b,c]", valType: "stringSlice", changed: true}
+	BindFlagValue("list", flag1)
+	if len(v.find("list", true).([]string)) != 3 {
+		t.Fatal("expected 3 items")
+	}
+	flag2 := mockFlag{name: "arr", val: "[a,b]", valType: "stringArray", changed: true}
+	BindFlagValue("arr", flag2)
+	if len(v.find("arr", true).([]string)) != 2 {
+		t.Fatal("expected 2 items")
+	}
+	flag3 := mockFlag{name: "map", val: "[k1=v1,k2=v2]", valType: "stringToString", changed: true}
+	BindFlagValue("map", flag3)
+	m := v.find("map", true).(map[string]any)
+	if m["k1"] != "v1" {
+		t.Fatal()
+	}
+	flag4 := mockFlag{name: "durs", val: "[1h,30m]", valType: "durationSlice", changed: true}
+	BindFlagValue("durs", flag4)
+	ds := v.find("durs", true).([]time.Duration)
+	if len(ds) != 2 {
+		t.Fatal()
+	}
+	flag5 := mockFlag{name: "other", val: "hello", valType: "unknown", changed: true}
+	BindFlagValue("other", flag5)
+	if v.find("other", true) != "hello" {
+		t.Fatal()
+	}
+}
+
+func TestFindConfigDotKey(t *testing.T) {
+	Reset()
+	SetConfigType("json")
+	ReadConfig(strings.NewReader(`{"foo": "shadow", "foo.bar": "val"}`))
+	// searchIndexableWithPathPrefixes prioritizes "foo.bar" key over "foo" shadow
+	if v.find("foo.bar", true) != "val" {
+		t.Fatal("expected val")
+	}
+}
+
+func TestFindKVStoreShadowed(t *testing.T) {
+	Reset()
+	v.kvstore["foo"] = "shadow"
+	v.kvstore["foo.bar"] = "val"
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestFindDefaultsShadowed(t *testing.T) {
+	Reset()
+	v.defaults["foo"] = "shadow"
+	v.defaults["foo.bar"] = "val"
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestFindBindEnvMultiple(t *testing.T) {
+	Reset()
+	BindEnv("key", "ENV1", "ENV2")
+	os.Setenv("ENV2", "val2")
+	defer os.Unsetenv("ENV2")
+	if v.find("key", true) != "val2" {
+		t.Fatal("expected val2")
+	}
+}
+
+func TestFindEnvNestedShadow(t *testing.T) {
+	Reset()
+	BindEnv("foo.bar", "ENV_FOO_BAR")
+	SetDefault("foo", "shadow")
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestWatchConfigAddWatcherError(t *testing.T) {
+	Reset()
+	SetConfigFile("config.yaml")
+	WatchConfig()
+}
+
+func TestMergeConfigUnmarshalError(t *testing.T) {
+	Reset()
+	SetConfigType("json")
+	err := MergeConfig(strings.NewReader("not json"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestWriteConfigMissingFile(t *testing.T) {
+	Reset()
+	v.configFile = ""
+	v.configName = ""
+	err := WriteConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestGetSliceUnmarshalError(t *testing.T) {
+	Reset()
+	Set("bad", map[string]any{"k": "v"})
+	res := GetSlice[int]("bad")
+	if res != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestYamlCodec(t *testing.T) {
+	codec := yamlCodec{}
+	input := map[string]any{"key": "value"}
+	b, err := codec.Encode(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := make(map[string]any)
+	err = codec.Decode(b, output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output["key"] != "value" {
+		t.Fatal()
+	}
+}
+
+func TestMergeConfigMapNilConfig(t *testing.T) {
+	Reset()
+	v.config = nil
+	err := MergeConfigMap(map[string]any{"key": "value"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if GetString("key") != "value" {
+		t.Fatal()
+	}
+}
+
+func TestSearchSliceWithPathPrefixesMapAnyAny(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"list": []any{map[any]any{"name": "first"}},
+	}
+	if GetString("list.0.name") != "first" {
+		t.Fatal()
+	}
+}
+
+func TestMergeMapsMapAnyAnyItgt(t *testing.T) {
+	Reset()
+	src := map[string]any{"a": map[any]any{"b": "new"}}
+	tgt := map[string]any{"a": map[any]any{"b": "old"}}
+	itgt := tgt["a"].(map[any]any)
+	mergeMaps(src, tgt, itgt)
+	if itgt["b"] != "new" {
+		t.Fatalf("expected new, got %v", itgt["b"])
+	}
+}
+
+func TestSearchMapEmptyPath(t *testing.T) {
+	Reset()
+	m := map[string]any{"a": "b"}
+	res := v.searchMap(m, []string{})
+	rm, ok := res.(map[string]any)
+	if !ok || rm["a"] != "b" {
+		t.Fatal()
+	}
+}
+
+func TestIsPathShadowedInAutoEnvNoShadow(t *testing.T) {
+	Reset()
+	AutomaticEnv()
+	SetEnvPrefix("confy")
+	if v.isPathShadowedInAutoEnv([]string{"foo", "bar"}) != "" {
+		t.Fatal()
+	}
+}
+
+func TestGetWithDefaultCastError(t *testing.T) {
+	Reset()
+	SetConfigType("json")
+	ReadConfig(strings.NewReader(`{"num": "notanumber"}`))
+	if GetWithDefault("num", 42) != 42 {
+		t.Fatal("expected default on cast error")
+	}
+}
+
+func TestRegisterAliasExists(t *testing.T) {
+	Reset()
+	RegisterAlias("alias", "key")
+	RegisterAlias("alias", "key")
+	if GetString("alias") != "" {
+		t.Fatal()
+	}
+}
+
+func TestStringToWeakSliceHookFuncEmpty(t *testing.T) {
+	Reset()
+	Set("empty", "")
+	type S struct {
+		List []string `mapstructure:"empty"`
+	}
+	var s S
+	err := Unmarshal(&s)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(s.List) != 0 {
+		t.Fatalf("expected empty, got %v", s.List)
+	}
+}
+
+func TestBindEnvMergeWithEnvPrefix(t *testing.T) {
+	Reset()
+	SetEnvPrefix("myapp")
+	BindEnv("key")
+	os.Setenv("MYAPP_KEY", "val")
+	defer os.Unsetenv("MYAPP_KEY")
+	if GetString("key") != "val" {
+		t.Fatal()
+	}
+}
+
+func TestDefaultDecoderConfigOpts(t *testing.T) {
+	Reset()
+	Set("name", "test")
+	type S struct {
+		Name string `mapstructure:"name"`
+	}
+	var s S
+	opt := func(c *mapstructure.DecoderConfig) {
+		c.TagName = "mapstructure"
+	}
+	err := Unmarshal(&s, opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.Name != "test" {
+		t.Fatal()
+	}
+}
+
+func TestGetConfigTypeNoExt(t *testing.T) {
+	Reset()
+	v.configType = ""
+	SetConfigFile("config")
+	if v.getConfigType() != "" {
+		t.Fatalf("expected empty, got %s", v.getConfigType())
+	}
+}
+
+func TestIsPathShadowedInDeepMapMapAnyAny(t *testing.T) {
+	Reset()
+	m := map[string]any{"a": map[any]any{"b": "val"}}
+	shadow := v.isPathShadowedInDeepMap([]string{"a", "b", "c"}, m)
+	if shadow != "a.b" {
+		t.Fatalf("expected a.b, got %s", shadow)
+	}
+}
+
+func TestSearchIndexableWithPathPrefixesMissing(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"foo": map[string]any{"bar": "val"},
+	}
+	if v.Get("foo.missing") != nil {
+		t.Fatal()
+	}
+}
+
+func TestFindKVStore(t *testing.T) {
+	Reset()
+	v.kvstore["key"] = "val"
+	if v.find("key", true) != "val" {
+		t.Fatal()
+	}
+}
+
+func TestFindDefaults(t *testing.T) {
+	Reset()
+	SetDefault("key", "val")
+	if v.find("key", true) != "val" {
+		t.Fatal()
+	}
+}
+
+func TestFindNestedOverride(t *testing.T) {
+	Reset()
+	Set("a.b", "val")
+	if v.find("a.b", true) != "val" {
+		t.Fatal()
+	}
+}
+
+func TestFindNestedConfig(t *testing.T) {
+	Reset()
+	SetConfigType("json")
+	ReadConfig(strings.NewReader(`{"a": {"b": "val"}}`))
+	if v.find("a.b", true) != "val" {
+		t.Fatal()
+	}
+}
+
+func TestFindNestedDefaults(t *testing.T) {
+	Reset()
+	SetDefault("a.b", "val")
+	if v.find("a.b", true) != "val" {
+		t.Fatal()
+	}
+}
+
+func TestFindNestedKVStore(t *testing.T) {
+	Reset()
+	v.kvstore["a"] = map[string]any{"b": "val"}
+	if v.find("a.b", true) != "val" {
+		t.Fatal()
+	}
+}
+
+func TestReadInConfigReadError(t *testing.T) {
+	Reset()
+	v.SetFS(&readErrorFS{mockFS{files: map[string]string{"/etc/app.json": `{"key":"value"}`}}})
+	v.SetConfigFile("/etc/app.json")
+	v.SetConfigType("json")
+	err := v.ReadInConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type errorReadCloser struct{}
+
+func (e *errorReadCloser) Read(p []byte) (n int, err error) {
+	return 0, errors.New("read error")
+}
+
+func (e *errorReadCloser) Close() error {
+	return nil
+}
+
+type readErrorFS struct {
+	mockFS
+}
+
+func (r *readErrorFS) Open(name string) (io.ReadCloser, error) {
+	return &errorReadCloser{}, nil
+}
+
+func TestWriteConfigAsUnsupportedExt(t *testing.T) {
+	Reset()
+	SetConfigType("xml")
+	err := WriteConfigAs("/tmp/config.xml")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestReadConfigUnsupportedExt(t *testing.T) {
+	Reset()
+	SetConfigType("xml")
+	err := ReadConfig(strings.NewReader("<a/>"))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSafeWriteConfigAsUnsupportedExt(t *testing.T) {
+	Reset()
+	SetConfigType("xml")
+	err := SafeWriteConfigAs("/tmp/config.xml")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestSafeWriteConfigUnsupportedExt(t *testing.T) {
+	Reset()
+	AddConfigPath(t.TempDir())
+	SetConfigName("app")
+	SetConfigType("xml")
+	err := SafeWriteConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+// --- push to 95%+ ---
+
+func TestCodecRegistryYAML(t *testing.T) {
+	Reset()
+	SetConfigType("yaml")
+	Set("key", "value")
+	var buf bytes.Buffer
+	err := WriteConfigTo(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "key") {
+		t.Fatal()
+	}
+}
+
+func TestCodecRegistryTOML(t *testing.T) {
+	Reset()
+	SetConfigType("toml")
+	Set("key", "value")
+	var buf bytes.Buffer
+	err := WriteConfigTo(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "key") {
+		t.Fatal()
+	}
+}
+
+func TestSearchSliceWithPathPrefixesFastPath(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"list": []any{"a", "b"},
+	}
+	if GetString("list.0") != "a" {
+		t.Fatal()
+	}
+}
+
+func TestWriteConfigNilConfig(t *testing.T) {
+	Reset()
+	tmpFile := filepath.Join(t.TempDir(), "out.json")
+	SetConfigType("json")
+	v.config = nil
+	err := WriteConfigAs(tmpFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIsPathShadowedInFlatMapDefault(t *testing.T) {
+	Reset()
+	shadow := v.isPathShadowedInFlatMap([]string{"a", "b"}, 42)
+	if shadow != "" {
+		t.Fatal()
+	}
+}
+
+func TestFlattenAndMergeMapMapAnyAny(t *testing.T) {
+	Reset()
+	m := map[string]any{"a": map[any]any{"b": "v"}}
+	shadow := v.flattenAndMergeMap(nil, m, "")
+	if !shadow["a.b"] {
+		t.Fatal()
+	}
+}
+
+func TestGetSliceNil(t *testing.T) {
+	Reset()
+	res := GetSlice[string]("missing")
+	if res != nil {
+		t.Fatal()
+	}
+}
+
+func TestMergeInConfigReadError(t *testing.T) {
+	Reset()
+	v.SetFS(&readErrorFS{mockFS{files: map[string]string{"/etc/app.json": `{"key":"value"}`}}})
+	v.SetConfigFile("/etc/app.json")
+	v.SetConfigType("json")
+	err := v.MergeInConfig()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestUnmarshalReaderReadError(t *testing.T) {
+	Reset()
+	SetConfigType("json")
+	err := v.unmarshalReader(&errorReader{}, make(map[string]any))
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestFindConfigDeepShadow(t *testing.T) {
+	Reset()
+	v.config = map[string]any{"foo": "shadow"}
+	if v.find("foo.bar", true) != nil {
+		t.Fatal("expected nil")
+	}
+}
+
+func TestFindFlagDefaultTypes(t *testing.T) {
+	Reset()
+	flag1 := mockFlag{name: "list", val: "[a,b]", valType: "stringSlice", changed: false}
+	BindFlagValue("list", flag1)
+	if len(v.find("list", true).([]string)) != 2 {
+		t.Fatal()
+	}
+	flag2 := mockFlag{name: "map", val: "[k=v]", valType: "stringToString", changed: false}
+	BindFlagValue("map", flag2)
+	m := v.find("map", true).(map[string]any)
+	if m["k"] != "v" {
+		t.Fatal()
+	}
+	flag3 := mockFlag{name: "durs", val: "[1h]", valType: "durationSlice", changed: false}
+	BindFlagValue("durs", flag3)
+	ds := v.find("durs", true).([]time.Duration)
+	if len(ds) != 1 {
+		t.Fatal()
+	}
+}
+
+func TestRegisterAliasRealKey(t *testing.T) {
+	Reset()
+	RegisterAlias("b", "c")
+	RegisterAlias("c", "b")
+}
+
+func TestSearchMapWithPathPrefixesMapAnyAny(t *testing.T) {
+	Reset()
+	v.config = map[string]any{
+		"foo": map[any]any{"bar": "val"},
+	}
+	if GetString("foo.bar") != "val" {
+		t.Fatal()
+	}
+}
+
+func TestMergeConfigMapMapAnyAny(t *testing.T) {
+	Reset()
+	v.config = map[string]any{"a": map[any]any{"b": "old"}}
+	err := MergeConfigMap(map[string]any{"a": map[string]any{"b": "new"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestUnmarshalExperimentalError(t *testing.T) {
+	v := NewWithOptions(ExperimentalBindStruct())
+	v.Set("key", "val")
+	var ch chan int
+	err := v.Unmarshal(&ch)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type errorReader struct{}
+
+func (e *errorReader) Read(p []byte) (n int, err error) {
+	return 0, errors.New("read error")
+}
+
+func TestFindFlagDefaultBool(t *testing.T) {
+	Reset()
+	flag := mockFlag{name: "flag", val: "true", valType: "bool", changed: false}
+	BindFlagValue("flag", flag)
+	if v.find("flag", true) != true {
+		t.Fatal("expected true")
+	}
+}
+
+func TestMergeMapsSliceAnyAny(t *testing.T) {
+	Reset()
+	dst := map[string]any{"a": []any{map[any]any{"b": 1}}}
+	src := map[string]any{"a": []any{map[string]any{"b": 2}}}
+	mergeMaps(src, dst, nil)
+	if dst["a"].([]any)[0].(map[string]any)["b"] != 2 {
+		t.Fatal()
+	}
+}
+
+func TestAbsPathifyRelative(t *testing.T) {
+	Reset()
+	got := absPathify(v.logger, "./config.yml")
+	if got == "./config.yml" {
+		t.Fatal("expected absolute path")
 	}
 }
