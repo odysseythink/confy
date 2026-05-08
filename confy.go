@@ -248,13 +248,13 @@ func SetOptions(opts ...Option) {
 // can use it in their testing as well.
 func Reset() {
 	v = New()
-	SupportedExts = []string{"json", "yaml", "yml"}
+	SupportedExts = []string{"json", "toml", "yaml", "yml", "properties", "props", "prop", "dotenv", "env", "ini"}
 
 	resetRemote()
 }
 
 // SupportedExts are universally supported extensions.
-var SupportedExts = []string{"json", "yaml", "yml"}
+var SupportedExts = []string{"json", "toml", "yaml", "yml", "properties", "props", "prop", "dotenv", "env", "ini"}
 
 // OnConfigChange sets the event handler that is called when a config file changes.
 func OnConfigChange(run func(in fsnotify.Event)) { v.OnConfigChange(run) }
