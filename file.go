@@ -5,8 +5,8 @@ import (
 )
 
 // exists checks if file exists.
-func exists(path string) (bool, error) {
-	stat, err := os.Stat(path)
+func exists(fs FS, path string) (bool, error) {
+	stat, err := fs.Stat(path)
 	if err == nil {
 		return !stat.IsDir(), nil
 	}

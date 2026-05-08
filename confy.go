@@ -133,6 +133,8 @@ type Confy struct {
 	configType        string
 	configPermissions os.FileMode
 
+	fs FS
+
 	parents        []string
 	config         map[string]any
 	override       map[string]any
@@ -160,6 +162,7 @@ func New() *Confy {
 	v.keyDelim = "."
 	v.configName = "config"
 	v.configPermissions = os.FileMode(0o644)
+	v.fs = osFS{}
 	v.config = make(map[string]any)
 	v.parents = []string{}
 	v.override = make(map[string]any)
@@ -346,6 +349,14 @@ func (v *Confy) SetConfigFile(in string) {
 	if in != "" {
 		v.configFile = in
 	}
+}
+
+// SetFS sets the file system implementation for Confy.
+func SetFS(fs FS) { v.SetFS(fs) }
+
+// SetFS sets the file system implementation for Confy.
+func (v *Confy) SetFS(fs FS) {
+	v.fs = fs
 }
 
 // ConfigFileUsed returns the file used to populate the config registry.
@@ -659,6 +670,7 @@ func Sub(key string) *Confy { return v.Sub(key) }
 
 func (v *Confy) Sub(key string) *Confy {
 	subv := New()
+	subv.fs = v.fs
 	data := v.Get(key)
 	if data == nil {
 		return nil
@@ -1207,7 +1219,13 @@ func (v *Confy) ReadInConfig() error {
 	}
 
 	v.logger.Debug("reading file", "file", filename)
-	file, err := os.ReadFile(filename)
+	f, err := v.fs.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	file, err := io.ReadAll(f)
 	if err != nil {
 		return err
 	}
@@ -1237,7 +1255,13 @@ func (v *Confy) MergeInConfig() error {
 		return UnsupportedConfigError(v.getConfigType())
 	}
 
-	file, err := os.ReadFile(filename)
+	f, err := v.fs.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	file, err := io.ReadAll(f)
 	if err != nil {
 		return err
 	}
@@ -1333,7 +1357,7 @@ func (v *Confy) WriteConfigTo(w io.Writer) error {
 func SafeWriteConfigAs(filename string) error { return v.SafeWriteConfigAs(filename) }
 
 func (v *Confy) SafeWriteConfigAs(filename string) error {
-	alreadyExists, err := exists(filename)
+	alreadyExists, err := exists(v.fs, filename)
 	if alreadyExists && err == nil {
 		return ConfigFileAlreadyExistsError(filename)
 	}
@@ -1365,7 +1389,7 @@ func (v *Confy) writeConfig(filename string, force bool) error {
 	if !force {
 		flags |= os.O_EXCL
 	}
-	f, err := os.OpenFile(filename, flags, v.configPermissions)
+	f, err := v.fs.OpenFile(filename, flags, v.configPermissions)
 	if err != nil {
 		return err
 	}
