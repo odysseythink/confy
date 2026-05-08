@@ -148,6 +148,7 @@ type Confy struct {
 	envKeyReplacer      StringReplacer
 	allowEmptyEnv       bool
 	env                 map[string][]string
+	pflags              map[string]FlagValue
 
 	onConfigChange func(fsnotify.Event)
 
@@ -176,6 +177,7 @@ func New() *Confy {
 	v.kvstore = make(map[string]any)
 	v.aliases = make(map[string]string)
 	v.env = make(map[string][]string)
+	v.pflags = make(map[string]FlagValue)
 	v.typeByDefValue = false
 	v.logger = slog.New(&discardHandler{})
 
@@ -564,6 +566,8 @@ func (v *Confy) isPathShadowedInFlatMap(path []string, mi any) string {
 		for k := range miv {
 			m[k] = true
 		}
+	case map[string]FlagValue:
+		m = castMapFlagToMapInterface(miv)
 	default:
 		return ""
 	}
@@ -1098,6 +1102,34 @@ func (v *Confy) find(lcaseKey string, flagDefault bool) any {
 		return nil
 	}
 
+	// PFlag override next
+	flag, exists := v.pflags[lcaseKey]
+	if exists && flag.HasChanged() {
+		switch flag.ValueType() {
+		case "int", "int8", "int16", "int32", "int64":
+			return cast.ToInt(flag.ValueString())
+		case "bool":
+			return cast.ToBool(flag.ValueString())
+		case "stringSlice", "stringArray":
+			s := strings.TrimPrefix(flag.ValueString(), "[")
+			s = strings.TrimSuffix(s, "]")
+			res, _ := readAsCSV(s)
+			return res
+		case "stringToString":
+			return stringToStringConv(flag.ValueString())
+		case "durationSlice":
+			s := strings.TrimPrefix(flag.ValueString(), "[")
+			s = strings.TrimSuffix(s, "]")
+			slice := strings.Split(s, ",")
+			return cast.ToDurationSlice(slice)
+		default:
+			return flag.ValueString()
+		}
+	}
+	if nested && v.isPathShadowedInFlatMap(path, v.pflags) != "" {
+		return nil
+	}
+
 	// Env override next
 	if v.automaticEnvApplied {
 		envKey := strings.Join(append(v.parents, lcaseKey), ".")
@@ -1145,6 +1177,31 @@ func (v *Confy) find(lcaseKey string, flagDefault bool) any {
 	}
 	if nested && v.isPathShadowedInDeepMap(path, v.defaults) != "" {
 		return nil
+	}
+
+	if flagDefault {
+		if flag, exists := v.pflags[lcaseKey]; exists {
+			switch flag.ValueType() {
+			case "int", "int8", "int16", "int32", "int64":
+				return cast.ToInt(flag.ValueString())
+			case "bool":
+				return cast.ToBool(flag.ValueString())
+			case "stringSlice", "stringArray":
+				s := strings.TrimPrefix(flag.ValueString(), "[")
+				s = strings.TrimSuffix(s, "]")
+				res, _ := readAsCSV(s)
+				return res
+			case "stringToString":
+				return stringToStringConv(flag.ValueString())
+			case "durationSlice":
+				s := strings.TrimPrefix(flag.ValueString(), "[")
+				s = strings.TrimSuffix(s, "]")
+				slice := strings.Split(s, ",")
+				return cast.ToDurationSlice(slice)
+			default:
+				return flag.ValueString()
+			}
+		}
 	}
 
 	return nil
@@ -1606,6 +1663,14 @@ func castMapStringToMapInterface(src map[string]string) map[string]any {
 	return tgt
 }
 
+func castMapFlagToMapInterface(src map[string]FlagValue) map[string]any {
+	tgt := map[string]any{}
+	for k, v := range src {
+		tgt[k] = v
+	}
+	return tgt
+}
+
 // mergeMaps merges two maps. The `itgt` parameter is for handling go-yaml's
 // insistence on parsing nested structures as `map[any]any`
 // instead of using a `string` as the key for nest structures beyond one level
@@ -1698,6 +1763,7 @@ func (v *Confy) AllKeys() []string {
 	// add all paths, by order of descending priority to ensure correct shadowing
 	m = v.flattenAndMergeMap(m, castMapStringToMapInterface(v.aliases), "")
 	m = v.flattenAndMergeMap(m, v.override, "")
+	m = v.mergeFlatMap(m, castMapFlagToMapInterface(v.pflags))
 	m = v.flattenAndMergeMap(m, v.config, "")
 	m = v.flattenAndMergeMap(m, v.kvstore, "")
 	m = v.flattenAndMergeMap(m, v.defaults, "")
